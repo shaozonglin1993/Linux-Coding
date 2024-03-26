@@ -1,5 +1,5 @@
-server:server.c comm.c
+test:test.c sem.c
 	gcc -o $@ $^
 .PHONY:clean
 clean:
-	rm -f server
+	rm -f test
