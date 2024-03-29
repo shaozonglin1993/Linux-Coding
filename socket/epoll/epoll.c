@@ -32,6 +32,18 @@ size_t my_read(int fd, char buf[])
 	return total;
 }
 
+size_t my_write(int fd, char buf[], int size)
+{
+	int ret = 0;
+	int total = 0;
+	
+	while( (ret = write(rsock, msg+total, size-total) && errno != EAGAIN ){
+		total += ret;
+	}
+	
+	return total;
+}
+
 int startup(const char *_ip, int _port)
 {
 	int sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -67,7 +79,8 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 	int listen_sock = startup(argv[1], atoi(argv[2]));//read
-
+	
+	//1、epoll_create
 	int epfd = epoll_create(256);
 	if(epfd < 0){
 		perror("epoll_create");
@@ -76,7 +89,8 @@ int main(int argc, char *argv[])
 	struct epoll_event _ev;
 	_ev.events = EPOLLIN;
 	_ev.data.fd = listen_sock;
-
+	
+	//2、epoll_ctl
 	epoll_ctl(epfd, EPOLL_CTL_ADD, listen_sock, &_ev);
 
 	struct epoll_event revs[64];
@@ -85,6 +99,7 @@ int main(int argc, char *argv[])
 	int num = 0;
 	int done = 0;
 	while(!done){
+		//3、epoll_wait
 		switch((num = epoll_wait(epfd, revs, 64, timeout))){
 			case 0:
 				printf("timeout\n");
@@ -99,39 +114,43 @@ int main(int argc, char *argv[])
 					int i = 0;
 					for(; i < num; i++){
 						int rsock = revs[i].data.fd;
-						if(rsock == listen_sock && (revs[i].events & EPOLLIN)){
+						if(rsock == listen_sock && (revs[i].events & EPOLLIN)){  //ready for read
 							int new_fd = accept(listen_sock,(struct sockaddr *)&peer, &len);
 							if( new_fd > 0){
 								printf("get a new client: %s : %d\n",inet_ntoa(peer.sin_addr),ntohs(peer.sin_port));
 
 								set_nonblock(new_fd);
-								_ev.events = EPOLLIN | EPOLLET;
+								_ev.events = EPOLLIN | EPOLLET;  //edge-triggered notification
 								_ev.data.fd = new_fd;
+								//2、epoll_ctl
 								epoll_ctl(epfd, EPOLL_CTL_ADD, new_fd, &_ev);
 							}
 						}else{
 							if(revs[i].events & EPOLLIN){
 								char buf[1024];
-								//no read!my_read();
+								//no read - my_read();
 								ssize_t _s = read(rsock, buf, sizeof(buf)-1);
 								if(_s > 0){
 									buf[_s] = '\0';
 									printf("client: %s\n",buf);
 
-									_ev.events = EPOLLOUT | EPOLLET;
+									_ev.events = EPOLLOUT | EPOLLET;  //edge-triggered notification
 									_ev.data.fd = rsock;
+									//2、epoll_ctl
 									epoll_ctl(epfd, EPOLL_CTL_MOD, rsock, &_ev);
 								}else if( _s == 0){
 									printf("client %d close...\n",rsock);
+									//2、epoll_ctl
 									epoll_ctl(epfd, EPOLL_CTL_DEL, rsock, NULL);
 									close(rsock);
 								}else{
 									perror("read");
 								}
-							}else if( revs[i].events & EPOLLOUT ){
+							}else if( revs[i].events & EPOLLOUT ){  //ready for write
 								const char *msg = "HTTP/1.0 200 OK\r\n\r\n<html><h1>hello world!+_+|| </h1></html>\r\n";
-								//my_write
+								//write - my_write
 								write(rsock, msg, strlen(msg));
+								//2、epoll_ctl
 								epoll_ctl(epfd, EPOLL_CTL_DEL, rsock, NULL);
 								close(rsock);
 							}else{
