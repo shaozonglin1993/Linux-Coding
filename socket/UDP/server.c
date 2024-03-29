@@ -44,7 +44,9 @@ int main()
 			printf("recvfrom error...\n");
 			exit(1);
 		}
-		printf("received from %s at PORT %d\n",inet_ntop(AF_INET, &client_addr.sin_addr, str,sizeof(str)),ntohs(client_addr.sin_port));
+
+        inet_ntop(AF_INET, &client_addr.sin_addr, str, sizeof(str));
+		printf("received from %s at PORT %d\n", str, ntohs(client_addr.sin_port));
 
 		for(i = 0; i < n; i++){
 			buf[i] = toupper(buf[i]);

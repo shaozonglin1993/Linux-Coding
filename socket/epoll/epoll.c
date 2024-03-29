@@ -20,7 +20,7 @@ void set_nonblock(int fd)
 	fcntl(fd, F_SETFL, fl|O_NONBLOCK);
 }
 
-ssize_t my_read(int fd, char buf[])
+size_t my_read(int fd, char buf[])
 {
 	int ret = 0;
 	int total = 0;
